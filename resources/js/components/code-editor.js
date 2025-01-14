@@ -1,4 +1,4 @@
-import {onChildEvent, onEnterPress, onSelect} from '../services/dom';
+import {onChildEvent, onEnterPress, onSelect} from '../services/dom.ts';
 import {Component} from './component';
 
 export class CodeEditor extends Component {
@@ -8,7 +8,15 @@ export class CodeEditor extends Component {
      */
     editor = null;
 
-    callback = null;
+    /**
+     * @type {?Function}
+     */
+    saveCallback = null;
+
+    /**
+     * @type {?Function}
+     */
+    cancelCallback = null;
 
     history = {};
 
@@ -74,8 +82,13 @@ export class CodeEditor extends Component {
 
         onChildEvent(button.parentElement, '.lang-option-favorite-toggle', 'click', () => {
             isFavorite = !isFavorite;
-            const action = isFavorite ? this.favourites.add : this.favourites.delete;
-            action(language);
+
+            if (isFavorite) {
+                this.favourites.add(language);
+            } else {
+                this.favourites.delete(language);
+            }
+
             button.setAttribute('data-favourite', isFavorite ? 'true' : 'false');
 
             window.$http.patch('/preferences/update-code-language-favourite', {
@@ -110,19 +123,21 @@ export class CodeEditor extends Component {
     }
 
     save() {
-        if (this.callback) {
-            this.callback(this.editor.getContent(), this.languageInput.value);
+        if (this.saveCallback) {
+            this.saveCallback(this.editor.getContent(), this.languageInput.value);
         }
         this.hide();
     }
 
-    async open(code, language, callback) {
+    async open(code, language, direction, saveCallback, cancelCallback) {
         this.languageInput.value = language;
-        this.callback = callback;
+        this.saveCallback = saveCallback;
+        this.cancelCallback = cancelCallback;
 
         await this.show();
         this.languageInputChange(language);
         this.editor.setContent(code);
+        this.setDirection(direction);
     }
 
     async show() {
@@ -136,7 +151,19 @@ export class CodeEditor extends Component {
             this.editor.focus();
         }, () => {
             this.addHistory();
+            if (this.cancelCallback) {
+                this.cancelCallback();
+            }
         });
+    }
+
+    setDirection(direction) {
+        const target = this.editorInput.parentElement;
+        if (direction) {
+            target.setAttribute('dir', direction);
+        } else {
+            target.removeAttribute('dir');
+        }
     }
 
     hide() {
